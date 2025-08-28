@@ -1,0 +1,287 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<HTML>
+ 
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<!-- A comment                             -->
+<HEAD>
+<style>
+    table.table1, table.table1 th, table.table1 td {
+        border: none;
+        border-collapse: collapse;
+        font-family: Arial; font-size: 20pt;
+        padding:10 15px 0 15px;
+    }
+    table.table2, table.table2 th, table.table2 td {
+        border:1px dotted gray;
+        border-collapse: collapse;
+        font-family: Arial; font-size: 10pt;
+        padding:10 15px 0 15px;
+    }
+    input[type="text"] {font-size:20pt;}
+    input[type="number"] {font-size:20pt; width: 100px;}
+    input[type="time"] {font-size:20pt; font-weight: normal;}
+
+    
+    #txtstartTimeComment {font-size:8pt;}
+    #txtendTimeComment {font-size:8pt;}
+    #txtUnpaidBreaksComment {font-size:12pt;}
+    #txtBasicComment {font-size:12pt;}
+    #txtNightBonusComment {font-size:12pt;}
+    #txtWeekendBonusComment {font-size:12pt;}
+    #txtTotalPayComment {font-size:12pt;}
+    #completedFullNightShiftComment {font-size:12pt;}
+
+</style>
+    
+<TITLE>Shift Pay</TITLE>
+
+<SCRIPT LANGUAGE = "JavaScript">
+   // Script to calculate shift pay
+   
+   var targetDate = new Date(); // Default to today
+
+   // Add decimal hours to datetime
+   Date.prototype.addHours = function(h) 
+   {    
+       this.setTime(this.getTime() + (h*60*60*1000)); 
+       return this;   
+   }
+   
+   // Round datetime to nearest 15 minutes;   
+   function getTimeRounded(inDate)
+   {
+      var roundToMinutes = 15;
+      var coeff = 1000 * 60 * roundToMinutes;
+      return new Date(Math.round(inDate.getTime() / coeff) * coeff); 
+   }
+
+   function somethingChanged(inDoDefaultBreakTime)
+   {
+        const BASIC_RATE = 13.40;           // 12.93; //12.13 // 11.89 //10.94 //10.13
+		const WEEKEND_BONUS_HOURLY = 5.27;  // 5.1;  // 5
+        const FULL_NIGHT_BONUS = 35.87;     // 34.69;    //34.01 //31.29 //28.98
+        const PRO_RATA_NIGHT_BONUS = FULL_NIGHT_BONUS/10;  // 3.40 // 3.13 // 2.90
+		//const FULL_WEEKEND_BONUS = 24.75  // 22.77 //21.44
+        const currencyFormatter = new Intl.NumberFormat('en-US', {style: 'currency', currency: 'GBP', minimumFractionDigits: 2 })
+
+        htmlTextTopOfScreen.innerHTML = "";
+        var startTime = document.getElementById("startTime").valueAsDate;
+        var endTime   = document.getElementById("endTime").valueAsDate;
+        var startDateTime = new Date(targetDate.getTime()); startDateTime.setHours(startTime.getUTCHours());startDateTime.setMinutes(startTime.getMinutes()); // Create a new date object with input time and today's date
+        var endDateTime   = new Date(targetDate.getTime()); endDateTime.setHours(endTime.getUTCHours());endDateTime.setMinutes(endTime.getMinutes()); // Create a new date object with input time and today's date
+        var currentDateTime = new Date(targetDate.getTime());
+        var completedFullShift = document.getElementById("completedFullNightShift").checked;
+        
+        /* // Testing
+        var startDateTime = new Date('September 22, 2019 23:15:30'); startDateTime.setHours(startTime.getUTCHours());startDateTime.setMinutes(startTime.getMinutes()); // Create a new date object with input time and today's date
+        var endDateTime   = new Date('September 22, 2019 23:15:30'); endDateTime.setHours(endTime.getUTCHours());endDateTime.setMinutes(endTime.getMinutes()); // Create a new date object with input time and today's date
+        var currentDateTime = new Date('September 22, 2019 23:15:30');
+        */
+
+        var spansTwodays = false;
+        if (startDateTime >= endDateTime && endDateTime.getHours() <= 07 ) spansTwodays = true; // Nightshift and it's early morning
+        if (startDateTime.getHours() == 0 && startDateTime.getMinutes() == 0) spansTwodays = true;
+        if (spansTwodays)
+        {
+            if (currentDateTime.getHours() >= 11) endDateTime.addHours(24); else startDateTime.addHours(-24); // If spanning two days, either start time was yesterday or end time is tomorrow
+        }
+
+        var totalShiftHours = Math.abs(endDateTime - startDateTime) / 36e5; // Microseconds to hours
+        if (totalShiftHours > 24) totalShiftHours = totalShiftHours - 24;
+
+        // Default break period
+        if (inDoDefaultBreakTime) 
+        {
+            document.getElementById("unPaidBreaks").value="00:00";
+            if (totalShiftHours>=8 && totalShiftHours < 9) document.getElementById("unPaidBreaks").value="00:45";
+            if (totalShiftHours>=9 && totalShiftHours < 10) document.getElementById("unPaidBreaks").value="01:00";
+			if (startDateTime.getHours() == 23 && endDateTime.getHours() == 7) document.getElementById("unPaidBreaks").value="00:00";
+			// possible alternative is 19-4 & 22-7 (9 hours) are unpaid breaks, rest paid
+			// Also, for day shift, 8 to 19 is 1 hour unpaid break
+        }
+
+        // Testing
+        //htmlTextTopOfScreen.innerHTML += "<br>Start time: " + startDateTime + ",  hour = " + startDateTime.getHours();//.toUTCString()
+        //htmlTextTopOfScreen.innerHTML += "<br>End time:  " + endDateTime + ",  hour = " + endDateTime.getHours();//.toUTCString()
+        //htmlTextTopOfScreen.innerHTML += "<br>Total shift hours (inc. breaks): " + totalShiftHours;
+        //htmlTextTopOfScreen.innerHTML += "<br>Use yesterday for start date: " + spansTwodays;
+        
+        // Show full dates on screen
+        document.getElementById("txtstartTimeComment").innerText = startDateTime;
+        document.getElementById("txtendTimeComment").innerText = endDateTime;
+
+        // Calculate day's pay
+        var breaksHours = document.getElementById("unPaidBreaks").valueAsDate.getUTCHours() + document.getElementById("unPaidBreaks").valueAsDate.getMinutes()/60; // Convert to decimal hours
+        var basicPay = (totalShiftHours - breaksHours) * BASIC_RATE;
+        var nightBonus = 0;
+        var weekendBonus = 0;
+        var totalPay = 0;
+        
+        // Weekend bonus
+        //if (startDateTime.getDay() == 0 || startDateTime.getDay() == 6) weekendBonus = FULL_WEEKEND_BONUS;
+		//if (!completedFullShift) weekendBonus = 0;
+		var timeWorkedInHours = (endDateTime - startDateTime)/3600000; if (timeWorkedInHours > 24) timeWorkedInHours = timeWorkedInHours - 24;
+		if (startDateTime.getDay() == 0 || startDateTime.getDay() == 6) weekendBonus = (timeWorkedInHours - breaksHours) * WEEKEND_BONUS_HOURLY; // £5 hour weekend bonus
+		// testing htmlTextTopOfScreen.innerHTML += "<br>hhh " +  (endDateTime - startDateTime)/3600000
+		
+        
+        // Night bonus
+        document.getElementById("txtNightBonusComment").innerText = "";
+        if ( (startDateTime.getHours() >= 19 && startDateTime.getHours() <= 23) || startDateTime.getHours() == 0 || startDateTime.getHours() == 1 || startDateTime.getHours() == 2) // Is a night shift
+        {
+            document.getElementById("completedFullNightShift").disabled= false;
+            var fullNightBonus = false;
+            if (endDateTime.getHours() >= 2 && endDateTime.getHours() < 19 && completedFullShift) { fullNightBonus = true; } // Finished 2 am or after. Full night bonus
+            if (startDateTime.getHours() == 19 && endDateTime.getHours() == 7) { fullNightBonus = true; } // Full shift. Full night bonus
+            if (totalShiftHours <5) fullNightBonus = false;
+            
+            if (fullNightBonus == true)
+            {
+                nightBonus = FULL_NIGHT_BONUS;
+                document.getElementById("txtNightBonusComment").innerText = "Full night rate";
+            }
+            else
+            {   // Pro rata night bonus     
+                var timeStart = startDateTime;
+                var timeEnd = endDateTime;
+                if (timeStart.getHours() == 19 || timeStart.getHours() == 20 || timeStart.getHours() == 21) { timeStart.setHours(22); timeStart.setMinutes(0); }; // Night bonus starts at 10 pm (affects start hours of 19,20,21 only)
+                if (timeEnd.getHours() == 7) { timeEnd.setHours(6); timeEnd.setMinutes(0); }// Night bonus ends at 6 am (affects end hours of 6-7 am only)
+                if (timeEnd.getHours() == 6) { timeEnd.setMinutes(0); }// Night bonus ends at 6 am (affects end hours of 6-7 am only)
+                var totalBonusHours = Math.abs(timeEnd - timeStart) / 36e5; // Microseconds to hours
+                if (totalBonusHours > 24) totalBonusHours = totalBonusHours - 24;
+                nightBonus = PRO_RATA_NIGHT_BONUS * totalBonusHours; // 2.60/hr from 10pm
+                document.getElementById("txtNightBonusComment").innerText = "" + totalBonusHours.toFixed(2) + " hours * £" + (PRO_RATA_NIGHT_BONUS).toFixed(2) + " (" + timeStart.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + "  to " + timeEnd.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ")";
+				// 66.666 equals 1 days's holiday = 1.5% * hours = 12 % of hours / 8 hours in a day
+            }
+        }
+        else
+        {
+            document.getElementById("completedFullNightShift").disabled= true;
+        }
+        
+        var holidayAccruel = (totalShiftHours- breaksHours)*12.07/100;
+        htmlTextHoliday.innerHTML  = "<center>Holiday accruel: " + holidayAccruel.toFixed(2) + " hours (" + (totalShiftHours - breaksHours).toFixed(2) + " hours * 12%) " + " / 8 hours/day = " + (holidayAccruel/8).toFixed(2) + " days holiday * ~£17/hr = ~£" +  (holidayAccruel/8 * 17).toFixed(2) + "</center>"
+		
+        totalPay = basicPay + nightBonus + weekendBonus; // Add it up
+        
+        // Display result
+        document.getElementById("txtBasicPay").innerText = currencyFormatter.format(basicPay);
+        document.getElementById("txtBasicComment").innerText = "(" + totalShiftHours.toFixed(2) + " hours - " + breaksHours.toFixed(2) + " hour break) * £" + BASIC_RATE.toFixed(2);
+        if (breaksHours ==0) document.getElementById("txtBasicComment").innerText = "" + totalShiftHours.toFixed(2) + " hours * £"  + BASIC_RATE.toFixed(2);
+        if (totalShiftHours > 12 || totalShiftHours < 5) document.getElementById("txtBasicComment").innerText += ". Something wrong here.";
+        document.getElementById("txtUnpaidBreaksComment").style.color = '';
+        document.getElementById("txtUnpaidBreaksComment").innerText = "HH:MM";
+        if (breaksHours >1) {document.getElementById("txtUnpaidBreaksComment").innerText = "HH:MM. Error. Max 01:00";document.getElementById("txtUnpaidBreaksComment").style.color = 'red'};
+        document.getElementById("txtNightBonus").innerText = currencyFormatter.format(nightBonus);
+        document.getElementById("txtWeekendBonus").innerText = "" + currencyFormatter.format(weekendBonus);
+        document.getElementById("txtWeekendBonusComment").innerText = "";
+        if (weekendBonus > 0) document.getElementById("txtWeekendBonusComment").innerText = ("" + startDateTime).substring(0,3) + " (" + (timeWorkedInHours - breaksHours) + " hours * £" + WEEKEND_BONUS_HOURLY.toFixed(2) + ")" ; // Show Sat or Sun
+        document.getElementById("txtTotalPay").innerText = currencyFormatter.format(totalPay);
+        document.getElementById("txtTotalPayComment").innerText = "£" + (totalPay / totalShiftHours).toFixed(2) + " / hour";
+        document.getElementById("txtTotalPayComment").style.color = '';
+        if (totalShiftHours >12 || totalShiftHours < 5 || totalPay < 0) {document.getElementById("txtTotalPayComment").innerText = "Error. Hours > 12 or < 5.";document.getElementById("txtTotalPayComment").style.color = 'red';}
+        
+        if (document.getElementById("completedFullNightShift").checked) document.getElementById("completedFullNightShiftComment").innerText = "Stayed to end of night shift"; else document.getElementById("completedFullNightShiftComment").innerText  = "Went home before night shift completed";
+        if (document.getElementById("completedFullNightShift").disabled) document.getElementById("completedFullNightShiftComment").innerText = "";
+   }   
+
+    function addOneToDate()
+    {
+        targetDate.setDate(targetDate.getDate() + 1);
+        somethingChanged(false);
+    }
+
+</SCRIPT>
+
+
+<BODY onload="somethingChanged(false)">
+   <P>
+      <CENTER>
+         <H2><U>Shift Pay</U><BR></H2>
+      </CENTER>
+   <P>
+
+   <CENTER>
+   <FORM NAME = "myForm" >
+
+      <table class="table1">
+          <tr>
+            <td>Start time</td>
+            <td><input id="startTime" type="time" name="txtStartTime" value="19:00" STYLE="background-color: #00F000;" onChange="somethingChanged(true)"></td>
+            <td><div id = "txtstartTimeComment"></div></td>
+            <td><button type="button" onclick="addOneToDate();"><b>+</b></button></td>
+          </tr>
+          <tr>
+            <td>End time</td>
+            <td><input id="endTime" type="time" name="txtEndTime" value="07:00" STYLE="background-color: #00F000;" onChange="somethingChanged(true)"></td>
+            <td><div id = "txtendTimeComment"></div></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>Unpaid breaks</td>
+            <td><input id="unPaidBreaks" type="time" name="txtUnpaidBreaks" value="00:00" STYLE="background-color: #00F000;" onChange="somethingChanged(false)"></td>
+            <td><div id = "txtUnpaidBreaksComment"></div></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>Completed full shift?</td>
+            <td><input type="checkbox" id="completedFullNightShift" name="completedFullNightShift"  STYLE="background-color: #00F000;" checked onChange="somethingChanged(false)"></td>
+            <td><div id = "completedFullNightShiftComment"></div></td>
+            <td></td>
+          </tr>
+          
+          <tr>
+            <td>Basic</td>
+            <td><div id = "txtBasicPay" style="text-align: right"></div></td>
+            <td><div id = "txtBasicComment"></div></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>Night bonus</td>
+            <td><div id = "txtNightBonus" style="text-align: right"></div></td>
+            <td><div id = "txtNightBonusComment"></div></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>Weekend bonus</td>
+            <td><div id = "txtWeekendBonus" style="text-align: right"></div></u></b></td>
+            <td><div id = "txtWeekendBonusComment"></div></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>Total</td>
+            <td><u><b><div id = "txtTotalPay" style="text-align: right"></div></u></b></td>
+            <td><div id = "txtTotalPayComment"></div></td>
+            <td></td>
+          </tr>
+          
+          
+        </table>
+
+   </FORM>
+   </CENTER>
+
+   
+   <p id="htmlTextTopOfScreen"></p>
+   <p id="htmlTextHoliday"></p>
+   
+   <br><br>
+   <table class="table2" align = "center">
+          <th align = "left">Breaks</th>
+          <tr><td>Shifts based on 5 hour minimum</td><td>20 minutes break (paid),<br> or 30 minute break (paid) when the shift is extended by two hours.<br>For shifts extending beyond 7 hours, see below</td></tr>
+          <tr><td>Shifts based on 8 hours (0800 to 1700) (0800 to 1600) last shift of the week <br>e.g. 0800 to 1700, 0800 to 1700+, 0700 to 1700+</td><td>30 minute break (15 minutes paid/15 minutes <b>unpaid</b>),<br> 45 minute break (<b>unpaid</b>), 20 minute break (paid) when shift extended by two hours or more</td></tr>
+          <tr><td>Shifts based on 7 hours<br>e.g. 0700 to 1400, 1400 to 2100, 7-hour floating shift, 7 hour extended up to 4 hours</td><td>30 minute break (paid),<br>20 minute break (paid) if shift extended by 2 hours or more</td></tr>
+          <tr><td>Shifts based on 12 hours (Days/Nights)</td><td>30 minute break (paid), 45 minute break (paid),<br> 20 minute break (paid) when shift extends into 11th hour</td></tr>
+          <tr><td>Night shift (2200 to 0600)</td><td>45 minute break (paid),<br> 20 minute break (paid) when shift is extended by 2 hours or more</td></tr>
+          <tr><td>Night shift (2100 to 0700)</td><td>45 minute break (paid), 20 minute break (paid)</td></tr>
+          <tr><td>Night shift (9 hours Car Operations only, e.g. 22:00 to 07:00)</td><td>60 minute break (<b>unpaid</b>), or two 30 minute breaks (<b>unpaid</b>)</td></tr>
+		  <tr><td>Night shift 2300 to 0700</td><td>45 minute break (paid), <br> 20 minute break (paid)</td></tr>
+   </table>						
+<font size="1">Updated 2024-12-23</font>						
+							
+
+   
+</BODY>
+</HTML>
+ 
